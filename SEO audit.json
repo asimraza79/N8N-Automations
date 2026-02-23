@@ -1,0 +1,418 @@
+{
+  "name": "SEO audit",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "SEO Audit Report",
+        "formDescription": "Welcome to SMJ Solutions",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Name",
+              "placeholder": "Enter Your Name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email",
+              "placeholder": "Enter Your Email",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Contact No.",
+              "placeholder": "Enter Your Phone Number",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Page Url",
+              "placeholder": "Enter URL",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        -3088,
+        -128
+      ],
+      "id": "ba808781-ad75-452d-ac8b-a391566e469a",
+      "name": "Form",
+      "webhookId": "14235f23-9c74-409d-8e3d-5a99b3d793e5"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Form').item.json['Page Url'] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -2736,
+        -128
+      ],
+      "id": "9913f7b2-4b26-48ce-b6b4-246bef7097ff",
+      "name": "Web Scrape"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Act as a world-class SEO Manager and Technical SEO expert.\n\nAnalyze the provided webpage HTML and perform a comprehensive SEO audit covering on-page, off-page, and technical SEO.\nOutput Formatting Rules (Strict)\n\nDo NOT use any other H1 headings.\nAll section titles such as On-Page SEO Audit, Technical SEO Audit, and Off-Page SEO Audit must be:\nBold text only\nNOT headings (no #, ##, or ###)\nDo not include any introductory or explanatory text.\n\nAudit Structure\n\nFor each audit section, organize findings under the following categories:\nCritical Issues: Must be fixed immediately\nQuick Wins: Easy fixes with high impact\nOpportunities for Improvement: Require more effort but offer long-term benefits\n\nReporting Requirements\nUse bar charts and pie charts to look modern report.Use clean, readable bullet points\nBe concise, actionable, and SEO-focused\nMaintain strict formatting consistency\n\nThis is my Url :{{ $json.data }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -2480,
+        -288
+      ],
+      "id": "407d522a-5a59-4abf-8eff-a496413b2688",
+      "name": "Technical SEO"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are the  best SEO Manager in the country and world class expert in optimizing websites to rank on google.\nIn this task, you will analyze the HTML code of a webpage and perform detailed and structured SEO Content Audit.\n\nAudit Structure\nYou will divide your audit in two parts:\n- The first part is Analysis\n- The second is the Recomendations\n\nIn the Analysis, you will include:\n- Content quality Assesment  - Evaluate the content overall's quality, accuracy, and relevance to the target audience.\n- Keyword Research and Analysis - Identify the primary and secondary keywords, keyword density, and keywords placement strategies.\n- Readability Analysis - Asses the content's readability score using metrics such as Flesch-Kincaid Grade Level, Flesch Reading Ease, and Gunning-Fog Index.\n\nIn the Recomendations, you will present your recomendations and actionable suggestions in clear, organized bullet points. Recomendations must improve the rankings in Google but also the user engagement.\n\nUse bar charts and pie charts to look modern report.Ensure the output is poorly formatted, clean, and highly readable. Only show Content Audit at the heading. Do not include any introductory or explanatory text-only the audit findings.\n\nHere is the content of my Url page :  {{ $json.data }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -2496,
+        16
+      ],
+      "id": "09d2b647-fe2e-4a54-a548-b998516a97f7",
+      "name": "Content Audit"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -2480,
+        -128
+      ],
+      "id": "d76f57f3-22f4-4c44-958b-e276af5584c0",
+      "name": "AI Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "szkDaHKJJqtyyuHn",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -2496,
+        192
+      ],
+      "id": "5f9d4a91-205d-430e-a255-877aea9cc7f1",
+      "name": "AI Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "szkDaHKJJqtyyuHn",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -2080,
+        -128
+      ],
+      "id": "caf0e3fa-e4b1-43b6-94d8-1dfb8dc43459",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "output"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -1920,
+        -128
+      ],
+      "id": "90569e2a-78bc-41b9-a7fb-cbc7e4be8623",
+      "name": "Aggregate"
+    },
+    {
+      "parameters": {
+        "mode": "markdownToHtml",
+        "markdown": "=# Site Audit\n\n {{ $json.output[0] }}\n\n# On-page seo Content Audit\n\n{{ $json.output[1] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.markdown",
+      "typeVersion": 1,
+      "position": [
+        -1776,
+        -128
+      ],
+      "id": "9914f7d8-cf1b-4a77-b762-65b252aef834",
+      "name": "Markdown"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Form').item.json.Email }}",
+        "subject": "=On-page SEO Audit -   {{ $('Form').item.json['Page Url'] }}",
+        "message": "={{ $json.data }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -1648,
+        -128
+      ],
+      "id": "6fa98cad-4dd1-499b-a18f-fd5a92f7ed6e",
+      "name": "Mail",
+      "webhookId": "f4d15144-3835-4a2b-b335-995cc95f50d5",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "KbUMPDeZGJgpJDLu",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apprcfjyb8omugXhu",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://airtable.com/apprcfjyb8omugXhu"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbllqctbPxDX6dQ2P",
+          "mode": "list",
+          "cachedResultName": "Table 4",
+          "cachedResultUrl": "https://airtable.com/apprcfjyb8omugXhu/tbllqctbPxDX6dQ2P"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ $('Form').item.json.Name }}",
+            "Email": "={{ $('Form').item.json.Email }}",
+            "URL": "={{ $('Form').item.json['Page Url'] }}",
+            "Contact No.": "={{ $('Form').item.json['Contact No.'] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Contact No.",
+              "displayName": "Contact No.",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -2944,
+        -128
+      ],
+      "id": "e59a05fc-942c-4325-84cf-75334aa51d8d",
+      "name": "Create a record",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "CwG6B2P2nAsWNict",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Form": {
+      "main": [
+        [
+          {
+            "node": "Create a record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Web Scrape": {
+      "main": [
+        [
+          {
+            "node": "Technical SEO",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Content Audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Technical SEO",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Content Audit",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Technical SEO": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Content Audit": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Markdown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Markdown": {
+      "main": [
+        [
+          {
+            "node": "Mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a record": {
+      "main": [
+        [
+          {
+            "node": "Web Scrape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "be3521b9-c6a7-43dc-a070-b88dbb5464c3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cdba3e1b311c545451f81128b11073a76bc71179119ffd71282e735b035d4643"
+  },
+  "id": "-MjZ7IxXLCYgmBWzgX38z",
+  "tags": []
+}
