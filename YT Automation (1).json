@@ -1,0 +1,688 @@
+{
+  "name": "YT Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "jsonSchemaExample": "[\n  {\n    \"voiceText\": \"You are standing at the edge, where hope feels distant. Yet, this is where resilience is born.\",\n    \"image_prompt\": \"A lone figure standing on a rainy,dimly lit street cornor, water dripping from a grayscale umbrella. Intense close-up of determined eyes under a dark, moody sky.\"\n  },\n  {\n    \"voiceText\": \"The worldf around may seems dark, but within you lies  an unyielding flame.\",\n    \"image_prompt\": \"A dimly lit room, shadows playing across walls. Close-up of hands lighting a single candle, casting warm light amidst deep shadows.\"\n  },\n  {\n    \"voiceText\": \"In the silence of despair, your heart whispers the truth of your strenght.\",\n    \"image_prompt\": \"A solitary figure in an empty cafe, rain streaking windows. Soft focus on their reflective expression,city lights blured behind.\"\n  },\n  {\n    \"voiceText\": \"Every step feels heavy, yet each one is a testment to your courage.\"\n  }\n]  "
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -2336,
+        -176
+      ],
+      "id": "0b735e56-f35e-4c7e-8e86-d1be03a67c06",
+      "name": "OT Parser"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -2480,
+        -176
+      ],
+      "id": "4b3ca8e3-5547-4447-9d66-6f33de5b14a2",
+      "name": "Gemini",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "dPVNfQFBfpFiEnf0",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -2736,
+        -288
+      ],
+      "id": "19f63b3b-cd6b-4908-845a-c208bbe62cf4",
+      "name": "Trigger"
+    },
+    {
+      "parameters": {
+        "amount": 25
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -2016,
+        -192
+      ],
+      "id": "51dea870-1b51-4a42-a40d-060cf968f5b5",
+      "name": "Wait",
+      "webhookId": "4ecf3c9c-ae48-4ce8-8358-80b27b1b0580"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Video Title: {{ $json.Idea }}\nVideo Description: {{ $json.Caption }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=ROLE:\nYou are a expert prompt engineer. Your task is to create sequential Voiceover and Images.\n\nSTRUCTURE :\nIntro (Scene 1-3)\nBuild-up (Scene 4-11)\nConclusion (Scene 12-15)\n\nThe user will provide the title and description of the video they are making. \n\nTASK: \nReturn a JSON array of 10 objects with the following format:\n\nvoiceText OUTPUT\nvoiceText :\n- A 2-sentence voiceover\n- Each voiceText must be 11-15 words total, strictly\n-  Each scene must connect naturally with the previous one \n4- Tone, niche, topic, and storytelling style must match:\n\nstyle and topic  {{ $json['Channel Style'] }}\n\n- writting should be intelligent, cinematic and easy to undrstand.\n- Use metaphors or analogies involving the main character only when relevant\n- Maintain smooth narrative flow across all scenes\n\nimage_prompt OUTPUT\nimage_prompt:\n- Cinematic, dark, motivational, fitness-focused visual prompt\n- Clearly describe:\n- Subject and action\n- Environment and setting\n- Lighting and atmosphere\n- Mood and emotional tone\n- Foreground and background composition\nwhen needed, include the main character using this description exactly:\n\nMain character Description: {{ $json.Prompt }}\n\n- Prompt must be highlyy visual but concise\n- STRICT CHARACTER LIMIT: 850-950 characters maximum\n- Do Not over-describe minor background details\n- Focus on impactful visuals instead of excessive adjectives\n- End every image-prompt by explicitly including the following style verbatim\n- Maintain visual continuity across scenes so everything feel like one  continuous film\n\nCRITICAL REQUIUREMENTS\n- All scenes must connect smoothly -- voiceover and visuals must feel like one cntinuous film\n- Never exceed the image prompt character limit\n-Do not include explination\n- Only return the JSON array\n- Do not include double quotes in your output"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -2480,
+        -400
+      ],
+      "id": "50b3f763-3e62-49f2-995b-0abce39aeba3",
+      "name": "Generate Prompts"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1p_lbUxQrXi-6bvAVjDZIiDlRmJt4ko6yOMmkAyYpM_Q",
+          "mode": "list",
+          "cachedResultName": "Copy of Ideas Input",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1p_lbUxQrXi-6bvAVjDZIiDlRmJt4ko6yOMmkAyYpM_Q/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 711902215,
+          "mode": "list",
+          "cachedResultName": "Sheet2",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1p_lbUxQrXi-6bvAVjDZIiDlRmJt4ko6yOMmkAyYpM_Q/edit#gid=711902215"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "to_use",
+              "lookupValue": "final"
+            }
+          ]
+        },
+        "options": {
+          "returnFirstMatch": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -2240,
+        -640
+      ],
+      "id": "004fcf3f-1c3d-47b2-80f9-6816d7b5c71d",
+      "name": "Music",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6ycpbSwiNEmqgh94",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.json2video.com/v2/movies",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"project\": {\n    \"movie\": \"{{ $('Get Ideas').item.json.movie }}\",\n      \"template\": \"2oW2DZtCPfAbhck2tdXt\",\n      \"variables\": {\n        \"voiceModel\": \"azure\",\n        \"voiceID\": \"en-US-EmmaMultilingualNeural\",\n        \"imageModel\": \"flux-schnell\",\n        \"audioURL\": \"{{ $json.Randomized_Audio }}\",\n        \"introVideo\": \"{{ $json.Intro_video }}\",\n        \"introText\": \"{{ $('Get Ideas').item.json.Idea }}\",\n    \"clips\": [\n      {\n        \"voiceText\": \"{{ $('Generate Prompts').item.json.output[0].voiceText }}\",\n        \"image_prompt\": \"{{ $('Generate Prompts').item.json.output[0].image_prompt }}\"\n      },\n    {\n  \"voiceText\": \"{{ $('Generate Prompts').item.json.output[1].voiceText }}\",\n  \"image_prompt\": \"{{ $('Generate Prompts').item.json.output[1].image_prompt }}\"\n},\n{\n  \"voiceText\": \"{{ $('Generate Prompts').item.json.output[2].voiceText }}\",\n  \"image_prompt\": \"{{ $('Generate Prompts').item.json.output[2].image_prompt }}\"\n},\n{\n  \"voiceText\": \"{{ $('Generate Prompts').item.json.output[3].voiceText }}\",\n  \"image_prompt\": \"{{ $('Generate Prompts').item.json.output[3].image_prompt }}\"\n},\n{\n  \"voiceText\": \"{{ $('Generate Prompts').item.json.output[4].voiceText }}\",\n  \"image_prompt\": \"{{ $('Generate Prompts').item.json.output[4].image_prompt }}\"\n},\n{\n  \"voiceText\": \"{{ $('Generate Prompts').item.json.output[5].voiceText }}\",\n  \"image_prompt\": \"{{ $('Generate Prompts').item.json.output[5].image_prompt }}\"\n},\n{\n  \"voiceText\": \"{{ $('Generate Prompts').item.json.output[6].voiceText }}\",\n  \"image_prompt\": \"{{ $('Generate Prompts').item.json.output[6].image_prompt }}\"\n},\n{\n  \"voiceText\": \"{{ $('Generate Prompts').item.json.output[7].voiceText }}\",\n  \"image_prompt\": \"{{ $('Generate Prompts').item.json.output[7].image_prompt }}\"\n},\n{\n  \"voiceText\": \"{{ $('Generate Prompts').item.json.output[8].voiceText }}\",\n  \"image_prompt\": \"{{ $('Generate Prompts').item.json.output[8].image_prompt }}\"\n},\n{\n  \"voiceText\": \"{{ $('Generate Prompts').item.json.output[9].voiceText }}\",\n  \"image_prompt\": \"{{ $('Generate Prompts').item.json.output[9].image_prompt }}\"\n   }\n]\n}\n}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -2128,
+        -480
+      ],
+      "id": "eca5f0b8-c25c-4e5a-952b-3b67c513463e",
+      "name": "Generate Video",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "6Ry7UunuD0xp12aW",
+          "name": "Header api ibz"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.json2video.com/v2/movies",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "Project",
+              "value": "={{ $('Generate Video').item.json.project }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -1904,
+        -464
+      ],
+      "id": "2f2286f2-69d8-4831-938e-da1fb67129de",
+      "name": "Get Video Url",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "6Ry7UunuD0xp12aW",
+          "name": "Header api ibz"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "fa0e5b25-8645-4c5f-9d88-0aff96d7ecec",
+                    "leftValue": "={{ $json.movies[4].status }}",
+                    "rightValue": "done",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "DONE"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "a196b8c1-c344-47df-adde-22a37aed0795",
+                    "leftValue": "={{ $json.movies[4].status }}",
+                    "rightValue": "running",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "RUNNING"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "47a83742-2bcc-47f1-ac3c-e2eb269c1a79",
+                    "leftValue": "={{ $json.movies[4].status }}",
+                    "rightValue": "error",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ERROR"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -1680,
+        -480
+      ],
+      "id": "7c8bcd90-9b5b-475f-a6ef-0e4d3ee6cde9",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "errorMessage": "ERROR"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        -1424,
+        -432
+      ],
+      "id": "34bf14e6-be91-42d0-a655-a82d1644bb02",
+      "name": "Stop and Error"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1p_lbUxQrXi-6bvAVjDZIiDlRmJt4ko6yOMmkAyYpM_Q",
+          "mode": "list",
+          "cachedResultName": "Copy of Ideas Input",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1p_lbUxQrXi-6bvAVjDZIiDlRmJt4ko6yOMmkAyYpM_Q/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 926138401,
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1p_lbUxQrXi-6bvAVjDZIiDlRmJt4ko6yOMmkAyYpM_Q/edit#gid=926138401"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Production Status",
+              "lookupValue": "for production "
+            }
+          ]
+        },
+        "options": {
+          "returnFirstMatch": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -2624,
+        -400
+      ],
+      "id": "fe04b28b-6ee6-490b-99c8-c242e92b4df4",
+      "name": "Get Ideas",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6ycpbSwiNEmqgh94",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1p_lbUxQrXi-6bvAVjDZIiDlRmJt4ko6yOMmkAyYpM_Q",
+          "mode": "list",
+          "cachedResultName": "Copy of Ideas Input",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1p_lbUxQrXi-6bvAVjDZIiDlRmJt4ko6yOMmkAyYpM_Q/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 926138401,
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1p_lbUxQrXi-6bvAVjDZIiDlRmJt4ko6yOMmkAyYpM_Q/edit#gid=926138401"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Id": "={{ $('Get Ideas').item.json.Id }}",
+            "Idea": "=",
+            "Caption": "=",
+            "Channel Style": "=",
+            "Prompt": "=",
+            "Character Style Prompt": "=",
+            "Production Status": "={{ $json.movies[2].status }}",
+            "Final Output": "=",
+            "Publishing Status": "=",
+            "Error log": "=",
+            "success": "=",
+            "movie": "={{ $('Get Video Url').item.json.movies[2].url }}",
+            "remaining_quota": "="
+          },
+          "matchingColumns": [
+            "Id"
+          ],
+          "schema": [
+            {
+              "id": "Id",
+              "displayName": "Id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Idea",
+              "displayName": "Idea",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Caption",
+              "displayName": "Caption",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Channel Style",
+              "displayName": "Channel Style",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Prompt",
+              "displayName": "Prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Character Style Prompt",
+              "displayName": "Character Style Prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Production Status",
+              "displayName": "Production Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Final Output",
+              "displayName": "Final Output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Publishing Status",
+              "displayName": "Publishing Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Error log",
+              "displayName": "Error log",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "success",
+              "displayName": "success",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "movie",
+              "displayName": "movie",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "remaining_quota",
+              "displayName": "remaining_quota",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1552,
+        -656
+      ],
+      "id": "f8967787-b8f5-47df-8e3f-4b9df89e423d",
+      "name": "Get Ideas1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6ycpbSwiNEmqgh94",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Get Video Url').item.json.movies[4].url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -1312,
+        -656
+      ],
+      "id": "c915c6b1-7abe-42c1-b012-5c62b501cee0",
+      "name": "HTTP Request"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "OT Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Generate Prompts",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Generate Prompts",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Ideas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Get Video Url",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Prompts": {
+      "main": [
+        [
+          {
+            "node": "Music",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Music": {
+      "main": [
+        [
+          {
+            "node": "Generate Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Video": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Video Url": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Get Ideas1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop and Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Ideas": {
+      "main": [
+        [
+          {
+            "node": "Generate Prompts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Ideas1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "5b454105-e7ad-49a6-8274-0a278fa1b58e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e00bc3b5a6ec144f42f4522071d4e818e36ce949b9e51985b185631cfff8bb49"
+  },
+  "id": "10_NwLmvTampXnPcF5n-3",
+  "tags": []
+}
