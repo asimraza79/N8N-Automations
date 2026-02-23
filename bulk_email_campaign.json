@@ -1,0 +1,314 @@
+{
+  "name": "Bulk Email Campaign",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "trigger-node",
+      "name": "Schedule Trigger (Every Monday 9AM)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "contacts.csv",
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "read-csv-node",
+      "name": "Read Contacts CSV",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-email",
+              "leftValue": "={{ $json.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "condition-unsubscribed",
+              "leftValue": "={{ $json.unsubscribed }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-node",
+      "name": "Filter: Valid & Subscribed",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Personalize email content for each contact\nconst item = $input.item.json;\n\nconst firstName = item.first_name || 'Valued Customer';\nconst lastName = item.last_name || '';\nconst email = item.email;\nconst company = item.company || '';\n\n// Build personalized subject and body\nconst subject = `Hi ${firstName}, Here's Something Special Just for You! 🎉`;\n\nconst htmlBody = `\n<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <style>\n    body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }\n    .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }\n    .header { background-color: #4F46E5; padding: 30px; text-align: center; }\n    .header h1 { color: #ffffff; margin: 0; font-size: 26px; }\n    .body { padding: 30px; color: #333333; line-height: 1.6; }\n    .body h2 { color: #4F46E5; }\n    .cta-button { display: inline-block; margin: 20px 0; padding: 14px 32px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; }\n    .footer { background-color: #f9f9f9; padding: 20px; text-align: center; font-size: 12px; color: #999999; }\n    .footer a { color: #4F46E5; text-decoration: none; }\n  </style>\n</head>\n<body>\n  <div class=\"container\">\n    <div class=\"header\">\n      <h1>🚀 Exciting News, ${firstName}!</h1>\n    </div>\n    <div class=\"body\">\n      <h2>We have something special for you</h2>\n      <p>Hi ${firstName}${lastName ? ' ' + lastName : ''},</p>\n      <p>Thank you for being a valued part of our community${company ? ` at ${company}` : ''}. We're thrilled to share our latest update with you.</p>\n      <p>We've been working hard on new features and improvements that we know you'll love. Here's what's new:</p>\n      <ul>\n        <li>✅ <strong>Feature One</strong> – Streamlined workflow to save you time.</li>\n        <li>✅ <strong>Feature Two</strong> – Enhanced analytics dashboard.</li>\n        <li>✅ <strong>Feature Three</strong> – Better integrations with your favorite tools.</li>\n      </ul>\n      <p>Ready to see it in action?</p>\n      <a href=\"https://yourwebsite.com/campaign?ref=${encodeURIComponent(email)}\" class=\"cta-button\">Explore Now →</a>\n      <p>If you have any questions, just reply to this email — we're always happy to help.</p>\n      <p>Warm regards,<br><strong>The Team</strong></p>\n    </div>\n    <div class=\"footer\">\n      <p>You received this email because you're subscribed to our newsletter.</p>\n      <p><a href=\"https://yourwebsite.com/unsubscribe?email=${encodeURIComponent(email)}\">Unsubscribe</a> | <a href=\"https://yourwebsite.com/privacy\">Privacy Policy</a></p>\n      <p>© 2025 Your Company, Inc. All rights reserved.</p>\n    </div>\n  </div>\n</body>\n</html>\n`;\n\nreturn {\n  email,\n  firstName,\n  lastName,\n  company,\n  subject,\n  htmlBody\n};\n"
+      },
+      "id": "personalize-node",
+      "name": "Personalize Email Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "amount": 1,
+        "unit": "seconds"
+      },
+      "id": "rate-limit-node",
+      "name": "Rate Limit (1s delay)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1120, 300],
+      "webhookId": "rate-limit-webhook"
+    },
+    {
+      "parameters": {
+        "fromEmail": "campaigns@yourcompany.com",
+        "fromName": "Your Company",
+        "toEmail": "={{ $json.email }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.htmlBody }}",
+        "options": {
+          "replyTo": "support@yourcompany.com"
+        }
+      },
+      "id": "send-email-node",
+      "name": "Send Email (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1340, 300],
+      "credentials": {
+        "smtp": {
+          "id": "YOUR_SMTP_CREDENTIAL_ID",
+          "name": "SMTP Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log result\nconst email = $input.item.json.email || 'unknown';\nconsole.log(`Email sent to: ${email}`);\n\nreturn {\n  email,\n  status: 'sent',\n  timestamp: new Date().toISOString()\n};\n"
+      },
+      "id": "log-success-node",
+      "name": "Log Success",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log error\nconst email = $input.item.json.email || 'unknown';\nconst error = $input.item.json.error?.message || 'Unknown error';\nconsole.error(`Failed to send email to: ${email}. Error: ${error}`);\n\nreturn {\n  email,\n  status: 'failed',\n  error,\n  timestamp: new Date().toISOString()\n};\n"
+      },
+      "id": "log-error-node",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 420]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "aggregate-results-node",
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build campaign summary report\nconst items = $input.all();\nconst allResults = items.flatMap(i => i.json.data || [i.json]);\n\nconst sent = allResults.filter(r => r.status === 'sent').length;\nconst failed = allResults.filter(r => r.status === 'failed').length;\nconst total = allResults.length;\n\nconst failedEmails = allResults\n  .filter(r => r.status === 'failed')\n  .map(r => `- ${r.email}: ${r.error}`)\n  .join('\\n') || 'None';\n\nconst report = `\n📧 BULK EMAIL CAMPAIGN REPORT\n=============================\nDate: ${new Date().toUTCString()}\n\nTotal Contacts: ${total}\n✅ Successfully Sent: ${sent}\n❌ Failed: ${failed}\nSuccess Rate: ${total > 0 ? ((sent / total) * 100).toFixed(1) : 0}%\n\nFailed Emails:\n${failedEmails}\n`;\n\nconsole.log(report);\n\nreturn {\n  total,\n  sent,\n  failed,\n  successRate: total > 0 ? ((sent / total) * 100).toFixed(1) + '%' : '0%',\n  report\n};\n"
+      },
+      "id": "summary-node",
+      "name": "Build Campaign Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "campaigns@yourcompany.com",
+        "fromName": "n8n Campaign Bot",
+        "toEmail": "admin@yourcompany.com",
+        "subject": "Campaign Report – {{ $json.sent }} sent, {{ $json.failed }} failed",
+        "emailType": "text",
+        "message": "={{ $json.report }}",
+        "options": {}
+      },
+      "id": "notify-admin-node",
+      "name": "Notify Admin",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [2220, 300],
+      "credentials": {
+        "smtp": {
+          "id": "YOUR_SMTP_CREDENTIAL_ID",
+          "name": "SMTP Account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (Every Monday 9AM)": {
+      "main": [
+        [
+          {
+            "node": "Read Contacts CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Contacts CSV": {
+      "main": [
+        [
+          {
+            "node": "Filter: Valid & Subscribed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter: Valid & Subscribed": {
+      "main": [
+        [
+          {
+            "node": "Personalize Email Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Personalize Email Content": {
+      "main": [
+        [
+          {
+            "node": "Rate Limit (1s delay)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate Limit (1s delay)": {
+      "main": [
+        [
+          {
+            "node": "Send Email (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email (SMTP)": {
+      "main": [
+        [
+          {
+            "node": "Log Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Success": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Results": {
+      "main": [
+        [
+          {
+            "node": "Build Campaign Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Campaign Summary": {
+      "main": [
+        [
+          {
+            "node": "Notify Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": ["email", "marketing", "campaign"],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
