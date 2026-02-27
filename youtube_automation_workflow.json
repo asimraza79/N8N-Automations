@@ -1,0 +1,434 @@
+{
+  "name": "YouTube Channel Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "youtube-automation",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [180, 400],
+      "webhookId": "youtube-auto-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst videoIdea = body.video_idea || '';\nconst videoDuration = Math.min(15, Math.max(1, parseInt(body.video_duration) || 5));\nconst useCustomVoiceover = body.use_custom_voiceover === true || body.use_custom_voiceover === 'true';\nconst voiceoverAudioUrl = body.voiceover_audio_url || null;\nconst voiceGender = body.voice_gender || 'male';\nconst videoStyle = body.video_style || 'educational';\nconst targetAudience = body.target_audience || 'general';\nconst language = body.language || 'English';\nif (!videoIdea) throw new Error('video_idea is required');\nconst wordCount = videoDuration * 130;\nconst sceneCount = Math.max(3, Math.floor(videoDuration * 1.5));\nreturn [{ json: { videoIdea, videoDuration, wordCount, sceneCount, useCustomVoiceover, voiceoverAudioUrl, voiceGender, videoStyle, targetAudience, language, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "validate-input",
+      "name": "Validate and Parse Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "create",
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a professional YouTube scriptwriter. Always return valid JSON only, no markdown."
+            },
+            {
+              "role": "user",
+              "content": "=Create a complete YouTube video script for: {{ $json.videoIdea }}\nDuration: {{ $json.videoDuration }} min | Words: {{ $json.wordCount }} | Scenes: {{ $json.sceneCount }} | Style: {{ $json.videoStyle }} | Audience: {{ $json.targetAudience }}\n\nReturn ONLY this JSON structure:\n{\"title\":\"60char max title\",\"description\":\"500-1000 char description\",\"tags\":[\"tag1\"],\"thumbnail_prompt\":\"DALL-E thumbnail prompt\",\"full_script\":\"complete narration ~{{ $json.wordCount }} words\",\"scenes\":[{\"scene_number\":1,\"title\":\"title\",\"duration_seconds\":30,\"narration\":\"words spoken\",\"visual_description\":\"what shows on screen\",\"image_prompt\":\"DALL-E scene prompt\",\"text_overlay\":null,\"transition\":\"fade\"}],\"music_mood\":\"calm/upbeat/dramatic\",\"music_prompt\":\"music generation prompt\",\"category\":\"Education\",\"chapters\":[{\"timestamp\":\"0:00\",\"title\":\"Intro\"}]}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 4000
+        }
+      },
+      "id": "generate-script",
+      "name": "Generate Script with GPT4o",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [660, 280],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credentials",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json.message.content;\nconst inputData = $('Validate and Parse Input').first().json;\nlet scriptData;\ntry {\n  const jsonMatch = response.match(/\\{[\\s\\S]*\\}/);\n  scriptData = JSON.parse(jsonMatch ? jsonMatch[0] : response);\n} catch(e) { throw new Error('Failed to parse script: ' + e.message); }\nreturn [{ json: { ...inputData, script: scriptData } }];"
+      },
+      "id": "parse-script",
+      "name": "Parse Script Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 280]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.useCustomVoiceover }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ]
+        }
+      },
+      "id": "voiceover-decision",
+      "name": "Custom Voiceover Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1140, 280]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.elevenlabs.io/v1/text-to-speech/{{ $json.voiceGender === 'female' ? 'EXAVITQu4vr4xnSDxMaL' : 'onwK4e9ZLuTAKqWW03F9' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "xi-api-key", "value": "={{ $credentials.apiKey }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"text\": \"{{ $json.script.full_script }}\", \"model_id\": \"eleven_turbo_v2\", \"voice_settings\": { \"stability\": 0.5, \"similarity_boost\": 0.8, \"style\": 0.3, \"use_speaker_boost\": true } }",
+        "options": {
+          "response": { "response": { "responseFormat": "file" } }
+        }
+      },
+      "id": "generate-voiceover",
+      "name": "Generate AI Voiceover ElevenLabs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1380, 160],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "elevenlabs-creds",
+          "name": "ElevenLabs API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn [{ json: { ...data, voiceoverSource: 'custom', voiceoverReady: true } }];"
+      },
+      "id": "use-custom-voiceover",
+      "name": "Use Custom Voiceover",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1380, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/images/generations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $credentials.apiKey }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"model\": \"dall-e-3\", \"prompt\": \"YouTube thumbnail: {{ $json.script.thumbnail_prompt }}. Professional, eye-catching, vibrant colors, high contrast, no text.\", \"n\": 1, \"size\": \"1792x1024\", \"quality\": \"hd\" }",
+        "options": {}
+      },
+      "id": "generate-thumbnail",
+      "name": "Generate Thumbnail DALLE3",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1620, 280],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "openai-http-creds",
+          "name": "OpenAI HTTP Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst thumbnailUrl = data.data && data.data[0] ? data.data[0].url : null;\nconst baseData = $('Parse Script Data').first().json;\nreturn baseData.script.scenes.map((scene, index) => ({\n  json: { ...baseData, thumbnailUrl, currentScene: scene, sceneIndex: index, totalScenes: baseData.script.scenes.length }\n}));"
+      },
+      "id": "split-scenes",
+      "name": "Split Into Scenes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1860, 280]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/images/generations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $credentials.apiKey }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"model\": \"dall-e-3\", \"prompt\": \"Scene {{ $json.sceneIndex + 1 }}: {{ $json.currentScene.image_prompt }}. Cinematic, 16:9, professional quality.\", \"n\": 1, \"size\": \"1792x1024\", \"quality\": \"standard\" }",
+        "options": {}
+      },
+      "id": "generate-scene-images",
+      "name": "Generate Scene Images",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2100, 280],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "openai-http-creds",
+          "name": "OpenAI HTTP Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst firstItem = allItems[0].json;\nconst sceneImages = allItems.map(item => ({\n  scene_number: item.json.sceneIndex + 1,\n  image_url: item.json.data && item.json.data[0] ? item.json.data[0].url : null,\n  narration: item.json.currentScene.narration,\n  duration_seconds: item.json.currentScene.duration_seconds,\n  text_overlay: item.json.currentScene.text_overlay,\n  transition: item.json.currentScene.transition\n}));\n\nreturn [{ json: { ...firstItem, sceneImages, allScenesReady: true } }];"
+      },
+      "id": "aggregate-scenes",
+      "name": "Aggregate All Scene Images",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2340, 280]
+    },
+    {
+      "parameters": {
+        "url": "https://api.suno.ai/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $credentials.apiKey }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"prompt\": \"{{ $json.script.music_prompt }} background music, no vocals, loopable, professional YouTube background\", \"make_instrumental\": true, \"duration\": {{ $json.videoDuration * 60 }} }",
+        "options": {}
+      },
+      "id": "generate-music",
+      "name": "Generate Background Music Suno",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2340, 480],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "suno-creds",
+          "name": "Suno AI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.creatomate.com/v1/renders",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $credentials.apiKey }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"source\": {\n    \"output_format\": \"mp4\",\n    \"width\": 1920,\n    \"height\": 1080,\n    \"duration\": {{ $json.videoDuration * 60 }},\n    \"elements\": [\n      {\n        \"type\": \"audio\",\n        \"source\": \"{{ $json.voiceoverAudioUrl || 'USE_ELEVENLABS_OUTPUT' }}\",\n        \"volume\": \"100%\",\n        \"time\": 0\n      },\n      {\n        \"type\": \"audio\",\n        \"source\": \"{{ $json.backgroundMusicUrl || '' }}\",\n        \"volume\": \"15%\",\n        \"time\": 0,\n        \"loop\": true\n      }\n    ]\n  }\n}",
+        "options": {}
+      },
+      "id": "assemble-video",
+      "name": "Assemble Final Video Creatomate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2580, 380],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "creatomate-creds",
+          "name": "Creatomate API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 60,
+        "unit": "seconds"
+      },
+      "id": "wait-for-render",
+      "name": "Wait 60 Seconds for Render",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [2820, 380]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.creatomate.com/v1/renders/{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $credentials.apiKey }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "check-render-status",
+      "name": "Check Render Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [3060, 380],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "creatomate-creds",
+          "name": "Creatomate API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "succeeded",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "render-complete",
+      "name": "Is Render Complete",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [3300, 380]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{ $json.script.title }}",
+        "description": "={{ $json.script.description + '\\n\\nChapters:\\n' + $json.script.chapters.map(c => c.timestamp + ' ' + c.title).join('\\n') }}",
+        "categoryId": "27",
+        "privacyStatus": "private",
+        "binaryData": false,
+        "videoUrl": "={{ $json.url }}",
+        "options": {
+          "tags": "={{ $json.script.tags }}",
+          "defaultLanguage": "en",
+          "notifySubscribers": true
+        }
+      },
+      "id": "upload-to-youtube",
+      "name": "Upload Video to YouTube",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [3540, 280],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "youtube-oauth",
+          "name": "YouTube OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "videoThumbnail",
+        "operation": "set",
+        "videoId": "={{ $json.id }}",
+        "binaryData": false,
+        "imageUrl": "={{ $('Aggregate All Scene Images').first().json.thumbnailUrl }}"
+      },
+      "id": "upload-thumbnail",
+      "name": "Set Video Thumbnail",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [3780, 280],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "youtube-oauth",
+          "name": "YouTube OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ytData = $input.first().json;\nconst origData = $('Parse Script Data').first().json;\nreturn [{ json: { success: true, youtube_id: ytData.id, youtube_url: 'https://youtube.com/watch?v=' + ytData.id, title: origData.script.title, duration_minutes: origData.videoDuration, status: 'Private - review before publishing!', voiceover_type: origData.useCustomVoiceover ? 'Custom Recording' : 'AI (ElevenLabs)', completed_at: new Date().toISOString() } }];"
+      },
+      "id": "success-response",
+      "name": "Build Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4020, 280]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "webhook-response",
+      "name": "Send Final Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [4260, 280]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nif (data.status === 'failed') throw new Error('Render failed: ' + (data.error || 'unknown'));\nreturn [{ json: data }];"
+      },
+      "id": "retry-render",
+      "name": "Wait and Retry Render",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3540, 480]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": { "main": [[{ "node": "Validate and Parse Input", "type": "main", "index": 0 }]] },
+    "Validate and Parse Input": { "main": [[{ "node": "Generate Script with GPT4o", "type": "main", "index": 0 }]] },
+    "Generate Script with GPT4o": { "main": [[{ "node": "Parse Script Data", "type": "main", "index": 0 }]] },
+    "Parse Script Data": { "main": [[{ "node": "Custom Voiceover Check", "type": "main", "index": 0 }]] },
+    "Custom Voiceover Check": {
+      "main": [
+        [{ "node": "Use Custom Voiceover", "type": "main", "index": 0 }],
+        [{ "node": "Generate AI Voiceover ElevenLabs", "type": "main", "index": 0 }]
+      ]
+    },
+    "Generate AI Voiceover ElevenLabs": { "main": [[{ "node": "Generate Thumbnail DALLE3", "type": "main", "index": 0 }]] },
+    "Use Custom Voiceover": { "main": [[{ "node": "Generate Thumbnail DALLE3", "type": "main", "index": 0 }]] },
+    "Generate Thumbnail DALLE3": { "main": [[{ "node": "Split Into Scenes", "type": "main", "index": 0 }]] },
+    "Split Into Scenes": { "main": [[{ "node": "Generate Scene Images", "type": "main", "index": 0 }]] },
+    "Generate Scene Images": { "main": [[{ "node": "Aggregate All Scene Images", "type": "main", "index": 0 }]] },
+    "Aggregate All Scene Images": {
+      "main": [
+        [{ "node": "Assemble Final Video Creatomate", "type": "main", "index": 0 }],
+        [{ "node": "Generate Background Music Suno", "type": "main", "index": 0 }]
+      ]
+    },
+    "Generate Background Music Suno": { "main": [[{ "node": "Assemble Final Video Creatomate", "type": "main", "index": 0 }]] },
+    "Assemble Final Video Creatomate": { "main": [[{ "node": "Wait 60 Seconds for Render", "type": "main", "index": 0 }]] },
+    "Wait 60 Seconds for Render": { "main": [[{ "node": "Check Render Status", "type": "main", "index": 0 }]] },
+    "Check Render Status": { "main": [[{ "node": "Is Render Complete", "type": "main", "index": 0 }]] },
+    "Is Render Complete": {
+      "main": [
+        [{ "node": "Upload Video to YouTube", "type": "main", "index": 0 }],
+        [{ "node": "Wait and Retry Render", "type": "main", "index": 0 }]
+      ]
+    },
+    "Wait and Retry Render": { "main": [[{ "node": "Wait 60 Seconds for Render", "type": "main", "index": 0 }]] },
+    "Upload Video to YouTube": { "main": [[{ "node": "Set Video Thumbnail", "type": "main", "index": 0 }]] },
+    "Set Video Thumbnail": { "main": [[{ "node": "Build Success Response", "type": "main", "index": 0 }]] },
+    "Build Success Response": { "main": [[{ "node": "Send Final Response", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "tags": ["YouTube", "AI", "Automation", "Content"]
+}
