@@ -1,0 +1,259 @@
+{
+  "name": "Traffic Sign Recognition & Autonomous Vehicle Control",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "seconds", "secondsInterval": 1 }]
+        }
+      },
+      "id": "node-trigger",
+      "name": "Camera Frame Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [100, 300],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "url": "={{$env.CAMERA_STREAM_URL}}/frame",
+        "method": "GET",
+        "responseFormat": "file"
+      },
+      "id": "node-camera",
+      "name": "Capture Camera Frame",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [320, 300],
+      "typeVersion": 4
+    },
+    {
+      "parameters": {
+        "operation": "toBase64",
+        "binaryPropertyName": "data"
+      },
+      "id": "node-encode",
+      "name": "Encode Frame to Base64",
+      "type": "n8n-nodes-base.convertToFile",
+      "position": [540, 300],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an advanced traffic sign recognition AI for autonomous vehicles. Analyze each image frame and return ONLY a valid JSON object with: {\"signs_detected\": [{\"type\": string, \"action\": string, \"confidence\": number, \"speed_limit\": number|null, \"priority\": \"critical|high|medium|low\"}], \"scene_context\": string, \"recommended_speed\": number, \"brake_required\": boolean, \"timestamp\": string}"
+            },
+            {
+              "role": "user",
+              "content": "Analyze this road scene for traffic signs: {{$json.data}}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.1,
+          "maxTokens": 500
+        }
+      },
+      "id": "node-ai-vision",
+      "name": "AI Traffic Sign Analyzer (GPT-4o Vision)",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "position": [760, 300],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.message?.content || '{}';\nlet result;\ntry {\n  result = JSON.parse(raw);\n} catch(e) {\n  result = { signs_detected: [], scene_context: 'parse_error', recommended_speed: 0, brake_required: true };\n}\nresult.processed_at = new Date().toISOString();\nresult.session_id = $env.SESSION_ID || 'default';\nreturn [{ json: result }];"
+      },
+      "id": "node-parse",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "position": [980, 300],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "conditions": [
+            {
+              "id": "brake-check",
+              "leftValue": "={{ $json.brake_required }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ]
+        }
+      },
+      "id": "node-brake-check",
+      "name": "Brake Required?",
+      "type": "n8n-nodes-base.if",
+      "position": [1200, 300],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "url": "={{$env.VEHICLE_CONTROL_URL}}/emergency-brake",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "action", "value": "BRAKE" },
+            { "name": "intensity", "value": "1.0" },
+            { "name": "reason", "value": "={{ $json.scene_context }}" },
+            { "name": "timestamp", "value": "={{ $json.processed_at }}" }
+          ]
+        }
+      },
+      "id": "node-brake",
+      "name": "Send BRAKE Command",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1420, 180],
+      "typeVersion": 4
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst signs = data.signs_detected || [];\nconst commands = [];\n\nfor (const sign of signs) {\n  switch(sign.type?.toUpperCase()) {\n    case 'STOP':\n      commands.push({ action: 'STOP', speed: 0, duration: 3000 });\n      break;\n    case 'SPEED_LIMIT':\n      commands.push({ action: 'SET_SPEED', speed: sign.speed_limit || 30 });\n      break;\n    case 'YIELD':\n      commands.push({ action: 'SLOW_DOWN', speed: 10, check_clear: true });\n      break;\n    case 'NO_ENTRY':\n      commands.push({ action: 'REROUTE', direction: 'reverse' });\n      break;\n    case 'PEDESTRIAN_CROSSING':\n      commands.push({ action: 'SLOW_DOWN', speed: 5, check_pedestrians: true });\n      break;\n    case 'TRAFFIC_LIGHT_RED':\n      commands.push({ action: 'STOP', speed: 0 });\n      break;\n    case 'TRAFFIC_LIGHT_GREEN':\n      commands.push({ action: 'PROCEED', speed: data.recommended_speed });\n      break;\n    default:\n      commands.push({ action: 'MAINTAIN_SPEED', speed: data.recommended_speed });\n  }\n}\n\nif (commands.length === 0) {\n  commands.push({ action: 'MAINTAIN_SPEED', speed: data.recommended_speed || 30 });\n}\n\nreturn [{ json: { commands, source_data: data, priority_command: commands[0] } }];"
+      },
+      "id": "node-command-logic",
+      "name": "Generate Vehicle Commands",
+      "type": "n8n-nodes-base.code",
+      "position": [1420, 420],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "url": "={{$env.VEHICLE_CONTROL_URL}}/command",
+        "method": "POST",
+        "sendBody": true,
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.VEHICLE_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "bodyParameters": {
+          "parameters": [
+            { "name": "commands", "value": "={{ JSON.stringify($json.commands) }}" },
+            { "name": "session_id", "value": "={{ $json.source_data.session_id }}" },
+            { "name": "timestamp", "value": "={{ $json.source_data.processed_at }}" }
+          ]
+        }
+      },
+      "id": "node-vehicle-control",
+      "name": "Send Vehicle Control Commands",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1640, 420],
+      "typeVersion": 4
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "traffic_sign_events",
+        "columns": "signs_detected,scene_context,recommended_speed,brake_required,processed_at,session_id",
+        "dataMode": "autoMapInputData"
+      },
+      "id": "node-db-log",
+      "name": "Log to Database",
+      "type": "n8n-nodes-base.postgres",
+      "position": [1860, 300],
+      "typeVersion": 2,
+      "credentials": { "postgres": { "id": "pg-cred-id", "name": "Vehicle DB" } }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.signs_detected.length }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ]
+        }
+      },
+      "id": "node-alert-check",
+      "name": "Signs Detected?",
+      "type": "n8n-nodes-base.if",
+      "position": [2080, 300],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SLACK_WEBHOOK_URL}}",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "🚦 Traffic Sign Alert!\nSigns: {{ $json.signs_detected.map(s => s.type).join(', ') }}\nAction: {{ $json.signs_detected[0]?.action }}\nSpeed: {{ $json.recommended_speed }} km/h\nTime: {{ $json.processed_at }}"
+            }
+          ]
+        }
+      },
+      "id": "node-slack-alert",
+      "name": "Send Slack Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2300, 180],
+      "typeVersion": 4
+    },
+    {
+      "parameters": {
+        "url": "={{$env.DASHBOARD_URL}}/api/telemetry",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "payload", "value": "={{ JSON.stringify($json) }}" }
+          ]
+        }
+      },
+      "id": "node-dashboard",
+      "name": "Update Live Dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2300, 420],
+      "typeVersion": 4
+    }
+  ],
+  "connections": {
+    "Camera Frame Trigger": { "main": [[{ "node": "Capture Camera Frame", "type": "main", "index": 0 }]] },
+    "Capture Camera Frame": { "main": [[{ "node": "Encode Frame to Base64", "type": "main", "index": 0 }]] },
+    "Encode Frame to Base64": { "main": [[{ "node": "AI Traffic Sign Analyzer (GPT-4o Vision)", "type": "main", "index": 0 }]] },
+    "AI Traffic Sign Analyzer (GPT-4o Vision)": { "main": [[{ "node": "Parse AI Response", "type": "main", "index": 0 }]] },
+    "Parse AI Response": { "main": [[{ "node": "Brake Required?", "type": "main", "index": 0 }]] },
+    "Brake Required?": {
+      "main": [
+        [{ "node": "Send BRAKE Command", "type": "main", "index": 0 }],
+        [{ "node": "Generate Vehicle Commands", "type": "main", "index": 0 }]
+      ]
+    },
+    "Generate Vehicle Commands": { "main": [[{ "node": "Send Vehicle Control Commands", "type": "main", "index": 0 }]] },
+    "Send Vehicle Control Commands": { "main": [[{ "node": "Log to Database", "type": "main", "index": 0 }]] },
+    "Send BRAKE Command": { "main": [[{ "node": "Log to Database", "type": "main", "index": 0 }]] },
+    "Log to Database": { "main": [[{ "node": "Signs Detected?", "type": "main", "index": 0 }]] },
+    "Signs Detected?": {
+      "main": [
+        [{ "node": "Send Slack Alert", "type": "main", "index": 0 }],
+        [{ "node": "Update Live Dashboard", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "traffic-sign-error-handler"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {},
+  "versionId": "1.0.0",
+  "triggerCount": 0,
+  "tags": ["autonomous-vehicle", "traffic-sign", "ai-vision", "safety-critical"]
+}
