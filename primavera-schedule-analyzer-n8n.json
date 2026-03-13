@@ -1,0 +1,293 @@
+{
+  "name": "AI Primavera Schedule Analyzer — SaaS",
+  "nodes": [
+
+    {
+      "parameters": {
+        "formTitle": "AI Primavera Schedule Analyzer",
+        "formDescription": "Upload your Primavera P6 XER or XML schedule file. Our AI will analyze it for critical path issues, missing logic, open-ended activities, negative float, long durations, and resource overloads — then email you a professional audit report.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Your Full Name",
+              "fieldType": "text",
+              "placeholder": "Ahmed Al-Rashidi",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email Address",
+              "fieldType": "email",
+              "placeholder": "planner@company.com",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Company Name",
+              "fieldType": "text",
+              "placeholder": "ABC Construction LLC",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Project Name",
+              "fieldType": "text",
+              "placeholder": "Highway Expansion Project — Phase 2",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Project Type",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  { "option": "Construction / Infrastructure" },
+                  { "option": "Oil & Gas / Petrochemical" },
+                  { "option": "Building / Real Estate" },
+                  { "option": "IT / Software" },
+                  { "option": "Industrial / Manufacturing" },
+                  { "option": "Other" }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Paste Schedule Data (XER Export / Activity List)",
+              "fieldType": "textarea",
+              "placeholder": "Paste your exported schedule data here. You can export from P6: File > Export > Spreadsheet (XLS) then copy the activity table. Include columns: Activity ID, Activity Name, Duration, Start, Finish, Total Float, Predecessors, Resources. Or paste the raw XER text content.",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Number of Activities (approximate)",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  { "option": "Under 100" },
+                  { "option": "100 - 500" },
+                  { "option": "500 - 2,000" },
+                  { "option": "2,000 - 10,000" },
+                  { "option": "Over 10,000" }
+                ]
+              },
+              "requiredField": false
+            },
+            {
+              "fieldLabel": "Specific Concerns (optional)",
+              "fieldType": "textarea",
+              "placeholder": "Any specific areas you want the AI to focus on? e.g. 'Focus on commissioning phase' or 'We suspect resource overload in July'",
+              "requiredField": false
+            }
+          ]
+        },
+        "options": {
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "responseText": "✅ Your schedule has been submitted for AI analysis!\n\nOur system is now:\n🔍 Parsing your schedule data\n🤖 Running AI analysis across 6 audit dimensions\n📊 Generating your professional report\n\nYou will receive your complete Schedule Audit Report in your inbox within 2-3 minutes.\n\nThank you for using AI Primavera Schedule Analyzer."
+            }
+          }
+        }
+      },
+      "id": "node-001-form",
+      "name": "📋 Schedule Upload Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [200, 300],
+      "webhookId": "primavera-analyzer-form-001"
+    },
+
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nconst name        = data['Your Full Name'] || 'Planner';\nconst email       = data['Email Address'] || '';\nconst company     = data['Company Name'] || 'N/A';\nconst project     = data['Project Name'] || 'Untitled Project';\nconst projectType = data['Project Type'] || 'Construction / Infrastructure';\nconst rawData     = data['Paste Schedule Data (XER Export / Activity List)'] || '';\nconst actCount    = data['Number of Activities (approximate)'] || 'Unknown';\nconst concerns    = data['Specific Concerns (optional)'] || 'None specified';\n\nif (!email || !email.includes('@')) throw new Error('Invalid email address provided.');\nif (!rawData || rawData.trim().length < 20) throw new Error('Schedule data is too short or empty. Please paste valid schedule data.');\n\nconst auditId   = 'PSA-' + Date.now();\nconst auditDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });\nconst auditTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });\n\n// Detect schedule format\nlet scheduleFormat = 'Unknown';\nif (rawData.includes('%T') || rawData.includes('TASK') || rawData.includes('PROJWBS')) scheduleFormat = 'XER Format';\nelse if (rawData.includes('<?xml') || rawData.includes('<Project>')) scheduleFormat = 'XML/PMXML Format';\nelse if (rawData.includes('Activity ID') || rawData.includes('Act ID') || rawData.includes('\\t')) scheduleFormat = 'Spreadsheet Export';\nelse scheduleFormat = 'Text / Pasted Data';\n\n// Count approximate activities from data\nconst lineCount = rawData.split('\\n').filter(l => l.trim().length > 0).length;\n\nreturn [{ json: {\n  name, email, company, project, projectType,\n  rawData: rawData.substring(0, 8000), // limit for API\n  activityCount: actCount,\n  specificConcerns: concerns,\n  scheduleFormat,\n  lineCount,\n  auditId,\n  auditDate,\n  auditTime\n}}];"
+      },
+      "id": "node-002-validate",
+      "name": "✅ Validate & Extract Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+
+    {
+      "parameters": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{ $credentials.httpHeaderAuth.value }}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 5000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"You are a world-class Primavera P6 scheduling expert and planning auditor with 20+ years experience on Gulf region mega-projects. Analyze the following schedule data and return a comprehensive audit JSON.\\n\\nPROJECT DETAILS:\\nProject Name: {{ $json.project }}\\nProject Type: {{ $json.projectType }}\\nCompany: {{ $json.company }}\\nDetected Format: {{ $json.scheduleFormat }}\\nApprox Activities: {{ $json.activityCount }}\\nSpecific Concerns: {{ $json.specificConcerns }}\\n\\nSCHEDULE DATA:\\n{{ $json.rawData }}\\n\\nINSTRUCTIONS:\\nAnalyze the schedule data thoroughly across all 6 audit dimensions below. If the data is limited or in XER format, use your expertise to infer realistic findings based on what IS visible, plus flag what additional data would be needed. Be specific, practical, and actionable in all recommendations.\\n\\nReturn ONLY a raw JSON object (no markdown, no backticks, no explanation) with this EXACT structure:\\n\\n{\\n  \\\"overallScore\\\": <0-100 integer>,\\n  \\\"overallGrade\\\": \\\"A|B|C|D|F\\\",\\n  \\\"executiveSummary\\\": \\\"3-4 sentence professional summary of schedule health\\\",\\n  \\\"schedulePulse\\\": \\\"HEALTHY|AT RISK|CRITICAL\\\",\\n  \\\"dataQuality\\\": \\\"HIGH|MEDIUM|LOW\\\",\\n  \\\"scores\\\": {\\n    \\\"criticalPath\\\": <0-100>,\\n    \\\"missingLogic\\\": <0-100>,\\n    \\\"openEnded\\\": <0-100>,\\n    \\\"negativeFloat\\\": <0-100>,\\n    \\\"longDurations\\\": <0-100>,\\n    \\\"resourceLoad\\\": <0-100>\\n  },\\n  \\\"keyMetrics\\\": {\\n    \\\"totalActivities\\\": \\\"number or estimate\\\",\\n    \\\"criticalActivities\\\": \\\"number or estimate\\\",\\n    \\\"criticalPathLength\\\": \\\"duration estimate\\\",\\n    \\\"activitiesWithNoSuccessor\\\": \\\"number or estimate\\\",\\n    \\\"activitiesWithNoPredecessor\\\": \\\"number or estimate\\\",\\n    \\\"negativeFloatActivities\\\": \\\"number or estimate\\\",\\n    \\\"longestDuration\\\": \\\"duration\\\",\\n    \\\"averageDuration\\\": \\\"duration\\\",\\n    \\\"resourcesLoaded\\\": \\\"yes/no/partial\\\",\\n    \\\"baselineExists\\\": \\\"yes/no/unknown\\\"\\n  },\\n  \\\"criticalPath\\\": {\\n    \\\"score\\\": <0-100>,\\n    \\\"status\\\": \\\"good|warning|error\\\",\\n    \\\"summary\\\": \\\"2 sentence summary\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"severity\\\": \\\"HIGH|MEDIUM|LOW\\\",\\n        \\\"issue\\\": \\\"Issue title\\\",\\n        \\\"description\\\": \\\"Detailed description\\\",\\n        \\\"activities\\\": \\\"Affected activity IDs or names if visible\\\",\\n        \\\"recommendation\\\": \\\"Specific action to take\\\",\\n        \\\"impact\\\": \\\"Schedule impact description\\\"\\n      }\\n    ]\\n  },\\n  \\\"missingLogic\\\": {\\n    \\\"score\\\": <0-100>,\\n    \\\"status\\\": \\\"good|warning|error\\\",\\n    \\\"summary\\\": \\\"2 sentence summary\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"severity\\\": \\\"HIGH|MEDIUM|LOW\\\",\\n        \\\"issue\\\": \\\"Issue title\\\",\\n        \\\"description\\\": \\\"Detailed description\\\",\\n        \\\"activities\\\": \\\"Affected activity IDs or names\\\",\\n        \\\"recommendation\\\": \\\"Specific action to take\\\",\\n        \\\"impact\\\": \\\"Schedule impact description\\\"\\n      }\\n    ]\\n  },\\n  \\\"openEnded\\\": {\\n    \\\"score\\\": <0-100>,\\n    \\\"status\\\": \\\"good|warning|error\\\",\\n    \\\"summary\\\": \\\"2 sentence summary\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"severity\\\": \\\"HIGH|MEDIUM|LOW\\\",\\n        \\\"issue\\\": \\\"Issue title\\\",\\n        \\\"description\\\": \\\"Detailed description\\\",\\n        \\\"activities\\\": \\\"Affected activity IDs or names\\\",\\n        \\\"recommendation\\\": \\\"Specific action to take\\\",\\n        \\\"impact\\\": \\\"Schedule impact description\\\"\\n      }\\n    ]\\n  },\\n  \\\"negativeFloat\\\": {\\n    \\\"score\\\": <0-100>,\\n    \\\"status\\\": \\\"good|warning|error\\\",\\n    \\\"summary\\\": \\\"2 sentence summary\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"severity\\\": \\\"HIGH|MEDIUM|LOW\\\",\\n        \\\"issue\\\": \\\"Issue title\\\",\\n        \\\"description\\\": \\\"Detailed description\\\",\\n        \\\"activities\\\": \\\"Affected activity IDs or names\\\",\\n        \\\"recommendation\\\": \\\"Specific action to take\\\",\\n        \\\"impact\\\": \\\"Schedule impact description\\\"\\n      }\\n    ]\\n  },\\n  \\\"longDurations\\\": {\\n    \\\"score\\\": <0-100>,\\n    \\\"status\\\": \\\"good|warning|error\\\",\\n    \\\"summary\\\": \\\"2 sentence summary\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"severity\\\": \\\"HIGH|MEDIUM|LOW\\\",\\n        \\\"issue\\\": \\\"Issue title\\\",\\n        \\\"description\\\": \\\"Detailed description\\\",\\n        \\\"activities\\\": \\\"Affected activity IDs or names\\\",\\n        \\\"recommendation\\\": \\\"Specific action to take\\\",\\n        \\\"impact\\\": \\\"Schedule impact description\\\"\\n      }\\n    ]\\n  },\\n  \\\"resourceLoad\\\": {\\n    \\\"score\\\": <0-100>,\\n    \\\"status\\\": \\\"good|warning|error\\\",\\n    \\\"summary\\\": \\\"2 sentence summary\\\",\\n    \\\"issues\\\": [\\n      {\\n        \\\"severity\\\": \\\"HIGH|MEDIUM|LOW\\\",\\n        \\\"issue\\\": \\\"Issue title\\\",\\n        \\\"description\\\": \\\"Detailed description\\\",\\n        \\\"activities\\\": \\\"Affected activity IDs or names\\\",\\n        \\\"recommendation\\\": \\\"Specific action to take\\\",\\n        \\\"impact\\\": \\\"Schedule impact description\\\"\\n      }\\n    ]\\n  },\\n  \\\"priorityActions\\\": [\\n    { \\\"rank\\\": 1, \\\"priority\\\": \\\"CRITICAL\\\", \\\"action\\\": \\\"...\\\", \\\"effort\\\": \\\"LOW|MEDIUM|HIGH\\\", \\\"impact\\\": \\\"...\\\", \\\"deadline\\\": \\\"Immediate|This Week|This Month\\\" },\\n    { \\\"rank\\\": 2, \\\"priority\\\": \\\"HIGH\\\", \\\"action\\\": \\\"...\\\", \\\"effort\\\": \\\"LOW|MEDIUM|HIGH\\\", \\\"impact\\\": \\\"...\\\", \\\"deadline\\\": \\\"Immediate|This Week|This Month\\\" },\\n    { \\\"rank\\\": 3, \\\"priority\\\": \\\"HIGH\\\", \\\"action\\\": \\\"...\\\", \\\"effort\\\": \\\"MEDIUM\\\", \\\"impact\\\": \\\"...\\\", \\\"deadline\\\": \\\"This Week\\\" },\\n    { \\\"rank\\\": 4, \\\"priority\\\": \\\"MEDIUM\\\", \\\"action\\\": \\\"...\\\", \\\"effort\\\": \\\"MEDIUM\\\", \\\"impact\\\": \\\"...\\\", \\\"deadline\\\": \\\"This Month\\\" },\\n    { \\\"rank\\\": 5, \\\"priority\\\": \\\"MEDIUM\\\", \\\"action\\\": \\\"...\\\", \\\"effort\\\": \\\"LOW\\\", \\\"impact\\\": \\\"...\\\", \\\"deadline\\\": \\\"This Month\\\" },\\n    { \\\"rank\\\": 6, \\\"priority\\\": \\\"LOW\\\", \\\"action\\\": \\\"...\\\", \\\"effort\\\": \\\"LOW\\\", \\\"impact\\\": \\\"...\\\", \\\"deadline\\\": \\\"Next Review\\\" }\\n  ],\\n  \\\"bestPracticeChecklist\\\": [\\n    { \\\"check\\\": \\\"All activities have at least one predecessor\\\", \\\"status\\\": \\\"pass|fail|partial|unknown\\\", \\\"note\\\": \\\"...\\\" },\\n    { \\\"check\\\": \\\"All activities have at least one successor\\\", \\\"status\\\": \\\"pass|fail|partial|unknown\\\", \\\"note\\\": \\\"...\\\" },\\n    { \\\"check\\\": \\\"No activity duration exceeds 20 working days\\\", \\\"status\\\": \\\"pass|fail|partial|unknown\\\", \\\"note\\\": \\\"...\\\" },\\n    { \\\"check\\\": \\\"No negative total float exists\\\", \\\"status\\\": \\\"pass|fail|partial|unknown\\\", \\\"note\\\": \\\"...\\\" },\\n    { \\\"check\\\": \\\"Critical path is continuous from start to finish\\\", \\\"status\\\": \\\"pass|fail|partial|unknown\\\", \\\"note\\\": \\\"...\\\" },\\n    { \\\"check\\\": \\\"Resources are loaded on all critical activities\\\", \\\"status\\\": \\\"pass|fail|partial|unknown\\\", \\\"note\\\": \\\"...\\\" },\\n    { \\\"check\\\": \\\"Baseline has been set and is current\\\", \\\"status\\\": \\\"pass|fail|partial|unknown\\\", \\\"note\\\": \\\"...\\\" },\\n    { \\\"check\\\": \\\"No dangling activities (open ends)\\\", \\\"status\\\": \\\"pass|fail|partial|unknown\\\", \\\"note\\\": \\\"...\\\" },\\n    { \\\"check\\\": \\\"Relationship types are predominantly Finish-to-Start\\\", \\\"status\\\": \\\"pass|fail|partial|unknown\\\", \\\"note\\\": \\\"...\\\" },\\n    { \\\"check\\\": \\\"Lags and leads are used appropriately (not excessively)\\\", \\\"status\\\": \\\"pass|fail|partial|unknown\\\", \\\"note\\\": \\\"...\\\" },\\n    { \\\"check\\\": \\\"WBS structure is logical and complete\\\", \\\"status\\\": \\\"pass|fail|partial|unknown\\\", \\\"note\\\": \\\"...\\\" },\\n    { \\\"check\\\": \\\"Activity names are clear and descriptive\\\", \\\"status\\\": \\\"pass|fail|partial|unknown\\\", \\\"note\\\": \\\"...\\\" }\\n  ],\\n  \\\"plannerNotes\\\": \\\"3-4 sentences of expert advice specific to this project type and the issues found\\\"\\n}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "node-003-claude",
+      "name": "🤖 Claude AI — Schedule Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "anthropic-api-creds",
+          "name": "Anthropic API Key"
+        }
+      }
+    },
+
+    {
+      "parameters": {
+        "jsCode": "const claudeResp = $input.first().json;\nconst meta       = $('✅ Validate & Extract Data').first().json;\n\n// Extract text from Claude response\nlet raw = '';\nif (claudeResp.content && Array.isArray(claudeResp.content)) {\n  raw = claudeResp.content.map(c => c.text || '').join('');\n} else {\n  raw = JSON.stringify(claudeResp);\n}\n\nconst clean = raw.replace(/```json/gi, '').replace(/```/g, '').trim();\n\nlet audit;\ntry {\n  audit = JSON.parse(clean);\n} catch(e) {\n  const m = clean.match(/\\{[\\s\\S]*\\}/);\n  if (m) audit = JSON.parse(m[0]);\n  else throw new Error('Failed to parse AI response: ' + e.message);\n}\n\n// Count total issues across all dimensions\nconst dims = ['criticalPath','missingLogic','openEnded','negativeFloat','longDurations','resourceLoad'];\nlet totalIssues = 0, criticalIssues = 0, highIssues = 0;\ndims.forEach(d => {\n  const items = audit[d]?.issues || [];\n  totalIssues  += items.length;\n  criticalIssues += items.filter(i => i.severity === 'CRITICAL').length;\n  highIssues   += items.filter(i => i.severity === 'HIGH').length;\n});\n\n// Checklist pass/fail counts\nconst checklist = audit.bestPracticeChecklist || [];\nconst checkPass    = checklist.filter(c => c.status === 'pass').length;\nconst checkFail    = checklist.filter(c => c.status === 'fail').length;\nconst checkPartial = checklist.filter(c => c.status === 'partial').length;\n\nreturn [{ json: {\n  ...meta,\n  audit,\n  stats: { totalIssues, criticalIssues, highIssues, checkPass, checkFail, checkPartial }\n}}];"
+      },
+      "id": "node-004-parse",
+      "name": "🔧 Parse AI Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 300]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nconst { audit, stats, name, company, project, projectType, auditId, auditDate, auditTime, scheduleFormat, activityCount } = d;\n\n// ── helpers ──────────────────────────────────────────────────────────────────\nconst sc = s => s >= 80 ? '#10b981' : s >= 60 ? '#f59e0b' : '#ef4444';\nconst sl = s => s >= 80 ? 'Good' : s >= 60 ? 'Needs Work' : 'Poor';\nconst pulse = p => p === 'HEALTHY' ? '#10b981' : p === 'AT RISK' ? '#f59e0b' : '#ef4444';\nconst gradeColor = g => ({ A:'#10b981', B:'#84cc16', C:'#f59e0b', D:'#f97316', F:'#ef4444' }[g] || '#64748b');\n\nconst badge = (sev) => {\n  const m = {\n    CRITICAL: { bg:'#fce7f3', c:'#9d174d', t:'⛔ CRITICAL' },\n    HIGH:     { bg:'#fee2e2', c:'#991b1b', t:'🔴 HIGH' },\n    MEDIUM:   { bg:'#fef3c7', c:'#92400e', t:'🟡 MEDIUM' },\n    LOW:      { bg:'#d1fae5', c:'#065f46', t:'🟢 LOW' }\n  };\n  const b = m[sev] || m.LOW;\n  return `<span style=\"background:${b.bg};color:${b.c};padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap;\">${b.t}</span>`;\n};\n\nconst statusBadge = (st) => {\n  const m = {\n    good:    { bg:'#d1fae5', c:'#065f46', t:'✓ PASS' },\n    warning: { bg:'#fef3c7', c:'#92400e', t:'⚠ WARNING' },\n    error:   { bg:'#fee2e2', c:'#991b1b', t:'✗ FAIL' }\n  };\n  const b = m[st] || m.warning;\n  return `<span style=\"background:${b.bg};color:${b.c};padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700;\">${b.t}</span>`;\n};\n\nconst checkBadge = (st) => {\n  const m = {\n    pass:    '✅',\n    fail:    '❌',\n    partial: '⚠️',\n    unknown: '❓'\n  };\n  return m[st] || '❓';\n};\n\nconst priorityColors = {\n  CRITICAL: { bg:'#fce7f3', border:'#db2777', text:'#9d174d' },\n  HIGH:     { bg:'#fee2e2', border:'#ef4444', text:'#991b1b' },\n  MEDIUM:   { bg:'#fef3c7', border:'#f59e0b', text:'#92400e' },\n  LOW:      { bg:'#d1fae5', border:'#10b981', text:'#065f46' }\n};\n\nconst effortBadge = (e) => {\n  const m = { HIGH:'🔴 High Effort', MEDIUM:'🟡 Medium Effort', LOW:'🟢 Low Effort' };\n  return m[e] || e;\n};\n\nconst deadlineBadge = (dl) => {\n  if (dl === 'Immediate') return `<span style=\"background:#fee2e2;color:#991b1b;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700;\">⚡ Immediate</span>`;\n  if (dl === 'This Week') return `<span style=\"background:#fef3c7;color:#92400e;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700;\">📅 This Week</span>`;\n  return `<span style=\"background:#d1fae5;color:#065f46;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700;\">📆 ${dl}</span>`;\n};\n\nconst scoreBar = (label, score) => `\n  <tr>\n    <td style=\"padding:7px 0;color:#374151;font-size:13px;width:160px;font-weight:500;\">${label}</td>\n    <td style=\"padding:7px 12px;\">\n      <div style=\"background:#e5e7eb;border-radius:99px;height:7px;overflow:hidden;\">\n        <div style=\"background:${sc(score)};height:100%;width:${score}%;border-radius:99px;\"></div>\n      </div>\n    </td>\n    <td style=\"padding:7px 0;color:${sc(score)};font-weight:800;font-size:13px;font-family:monospace;width:55px;\">${score}/100</td>\n    <td style=\"padding:7px 0;padding-left:8px;width:80px;\"><span style=\"background:${sc(score)}20;color:${sc(score)};padding:1px 8px;border-radius:10px;font-size:10px;font-weight:700;\">${sl(score)}</span></td>\n  </tr>`;\n\nconst renderIssues = (dim) => {\n  const issues = audit[dim]?.issues || [];\n  if (!issues.length) return '<p style=\"color:#9ca3af;font-size:13px;font-style:italic;\">No issues detected in this dimension.</p>';\n  return issues.map(issue => `\n    <div style=\"background:#fff;border:1px solid #e5e7eb;border-left:4px solid ${issue.severity==='CRITICAL'?'#db2777':issue.severity==='HIGH'?'#ef4444':issue.severity==='MEDIUM'?'#f59e0b':'#10b981'};border-radius:8px;padding:14px 16px;margin-bottom:10px;\">\n      <div style=\"display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;\">\n        ${badge(issue.severity)}\n        <span style=\"color:#111827;font-size:13px;font-weight:700;\">${issue.issue}</span>\n      </div>\n      <p style=\"color:#4b5563;font-size:13px;margin:0 0 8px;line-height:1.6;\">${issue.description}</p>\n      ${issue.activities && issue.activities !== 'N/A' && issue.activities !== '' ? `<div style=\"background:#f8fafc;border-radius:6px;padding:6px 10px;margin-bottom:8px;\"><span style=\"color:#64748b;font-size:11px;font-weight:700;\">AFFECTED ACTIVITIES: </span><span style=\"color:#1e293b;font-size:12px;font-family:monospace;\">${issue.activities}</span></div>` : ''}\n      <div style=\"background:#eff6ff;border-radius:6px;padding:8px 12px;margin-bottom:6px;\"><span style=\"color:#1d4ed8;font-size:11px;font-weight:700;\">💡 RECOMMENDATION: </span><span style=\"color:#1e3a5f;font-size:12px;\">${issue.recommendation}</span></div>\n      <div style=\"background:#f0fdf4;border-radius:6px;padding:6px 10px;\"><span style=\"color:#166534;font-size:11px;font-weight:700;\">📊 IMPACT: </span><span style=\"color:#14532d;font-size:12px;\">${issue.impact}</span></div>\n    </div>`).join('');\n};\n\nconst renderSection = (dimKey, title, icon, scoreVal) => `\n  <div style=\"margin-bottom:28px;\">\n    <div style=\"background:linear-gradient(135deg,#1e293b,#334155);padding:14px 20px;border-radius:10px 10px 0 0;\">\n      <table style=\"width:100%;border-collapse:collapse;\"><tr>\n        <td><span style=\"font-size:18px;margin-right:8px;\">${icon}</span><span style=\"color:#f1f5f9;font-size:15px;font-weight:700;\">${title}</span></td>\n        <td style=\"text-align:right;\">\n          ${statusBadge(audit[dimKey]?.status || 'warning')}\n          <span style=\"color:${sc(scoreVal)};font-size:22px;font-weight:900;font-family:monospace;margin-left:12px;\">${scoreVal}/100</span>\n        </td>\n      </tr></table>\n    </div>\n    <div style=\"background:#f8fafc;border:1px solid #e5e7eb;border-top:none;padding:4px 12px 4px;\">\n      <p style=\"color:#475569;font-size:13px;margin:8px 0;line-height:1.6;\">${audit[dimKey]?.summary || ''}</p>\n    </div>\n    <div style=\"background:#fff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:14px 16px;\">\n      ${renderIssues(dimKey)}\n    </div>\n  </div>`;\n\nconst priorityTable = (audit.priorityActions || []).map(a => {\n  const pc = priorityColors[a.priority] || priorityColors.LOW;\n  return `\n  <tr style=\"border-bottom:1px solid #f3f4f6;\">\n    <td style=\"padding:12px 14px;text-align:center;width:40px;\"><span style=\"background:#1e293b;color:#f1f5f9;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;\">${a.rank}</span></td>\n    <td style=\"padding:12px 14px;\"><span style=\"background:${pc.bg};color:${pc.text};padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700;border:1px solid ${pc.border}40;\">${a.priority}</span></td>\n    <td style=\"padding:12px 14px;color:#111827;font-size:13px;font-weight:600;\">${a.action}</td>\n    <td style=\"padding:12px 14px;color:#6b7280;font-size:12px;\">${a.impact}</td>\n    <td style=\"padding:12px 14px;font-size:12px;\">${effortBadge(a.effort)}</td>\n    <td style=\"padding:12px 14px;\">${deadlineBadge(a.deadline)}</td>\n  </tr>`;\n}).join('');\n\nconst checklistRows = (audit.bestPracticeChecklist || []).map((c, i) => `\n  <tr style=\"background:${i%2===0?'#f9fafb':'#fff'};border-bottom:1px solid #f3f4f6;\">\n    <td style=\"padding:10px 14px;font-size:22px;text-align:center;width:40px;\">${checkBadge(c.status)}</td>\n    <td style=\"padding:10px 14px;color:#111827;font-size:13px;font-weight:500;\">${c.check}</td>\n    <td style=\"padding:10px 14px;color:#6b7280;font-size:12px;\">${c.note || ''}</td>\n  </tr>`).join('');\n\nconst metricCards = Object.entries(audit.keyMetrics || {}).map(([k,v]) => {\n  const labels = {\n    totalActivities:'Total Activities', criticalActivities:'Critical Activities',\n    criticalPathLength:'Critical Path Length', activitiesWithNoSuccessor:'No Successor',\n    activitiesWithNoPredecessor:'No Predecessor', negativeFloatActivities:'Negative Float',\n    longestDuration:'Longest Duration', averageDuration:'Average Duration',\n    resourcesLoaded:'Resources Loaded', baselineExists:'Baseline Exists'\n  };\n  return `<td style=\"padding:0 6px 12px;\"><div style=\"background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px;text-align:center;min-width:90px;\"><div style=\"color:#6b7280;font-size:9px;letter-spacing:0.5px;margin-bottom:5px;\">${(labels[k]||k).toUpperCase()}</div><div style=\"color:#111827;font-size:14px;font-weight:800;font-family:monospace;\">${v}</div></div></td>`;\n}).join('');\n\nconst html = `<!DOCTYPE html>\n<html>\n<head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>P6 Schedule Audit — ${project}</title></head>\n<body style=\"margin:0;padding:0;background:#f1f5f9;font-family:'Segoe UI',Arial,sans-serif;\">\n<div style=\"max-width:920px;margin:0 auto;padding:30px 16px;\">\n\n<!-- HEADER -->\n<div style=\"background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#1e3a5f 100%);border-radius:16px;padding:30px 32px;margin-bottom:20px;\">\n  <table style=\"width:100%;border-collapse:collapse;\"><tr>\n    <td>\n      <div style=\"background:linear-gradient(135deg,#3b82f6,#8b5cf6);border-radius:12px;width:52px;height:52px;display:inline-flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:12px;\">📊</div>\n      <div style=\"color:#f1f5f9;font-size:22px;font-weight:900;\">AI Primavera Schedule<span style=\"color:#60a5fa;\"> Analyzer</span></div>\n      <div style=\"color:#94a3b8;font-size:11px;letter-spacing:1.5px;margin-top:2px;\">PROFESSIONAL SCHEDULE AUDIT REPORT</div>\n    </td>\n    <td style=\"text-align:right;vertical-align:top;\">\n      <div style=\"color:#94a3b8;font-size:11px;\">Audit ID</div>\n      <div style=\"color:#60a5fa;font-family:monospace;font-size:13px;margin-bottom:8px;\">${auditId}</div>\n      <div style=\"color:#94a3b8;font-size:11px;\">${auditDate} &nbsp;•&nbsp; ${auditTime}</div>\n    </td>\n  </tr></table>\n  <table style=\"width:100%;border-collapse:collapse;margin-top:20px;\"><tr>\n    <td style=\"color:#94a3b8;font-size:12px;\">PROJECT</td>\n    <td style=\"color:#94a3b8;font-size:12px;\">COMPANY</td>\n    <td style=\"color:#94a3b8;font-size:12px;\">TYPE</td>\n    <td style=\"color:#94a3b8;font-size:12px;\">FORMAT</td>\n    <td style=\"color:#94a3b8;font-size:12px;\">PREPARED FOR</td>\n  </tr><tr>\n    <td style=\"color:#f1f5f9;font-size:14px;font-weight:600;padding-top:4px;\">${project}</td>\n    <td style=\"color:#f1f5f9;font-size:14px;font-weight:600;padding-top:4px;\">${company}</td>\n    <td style=\"color:#f1f5f9;font-size:14px;padding-top:4px;\">${projectType}</td>\n    <td style=\"color:#f1f5f9;font-size:14px;padding-top:4px;\">${scheduleFormat}</td>\n    <td style=\"color:#f1f5f9;font-size:14px;padding-top:4px;\">${name}</td>\n  </tr></table>\n</div>\n\n<!-- OVERALL SCORE -->\n<div style=\"background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:26px 28px;margin-bottom:20px;\">\n  <table style=\"width:100%;border-collapse:collapse;\"><tr>\n    <td style=\"width:180px;text-align:center;vertical-align:middle;\">\n      <div style=\"background:${gradeColor(audit.overallGrade)}15;border:3px solid ${gradeColor(audit.overallGrade)};border-radius:50%;width:110px;height:110px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;\">\n        <div style=\"font-size:40px;font-weight:900;color:${gradeColor(audit.overallGrade)};font-family:monospace;line-height:1;\">${audit.overallScore}</div>\n        <div style=\"font-size:11px;color:#9ca3af;\">/100</div>\n      </div>\n      <div style=\"margin-top:8px;\"><span style=\"background:${gradeColor(audit.overallGrade)}20;color:${gradeColor(audit.overallGrade)};padding:3px 16px;border-radius:20px;font-size:14px;font-weight:800;\">Grade ${audit.overallGrade}</span></div>\n    </td>\n    <td style=\"padding-left:28px;vertical-align:middle;\">\n      <div style=\"display:flex;align-items:center;gap:10px;margin-bottom:12px;\">\n        <span style=\"font-size:18px;font-weight:800;color:#111827;\">Schedule Health:</span>\n        <span style=\"background:${pulse(audit.schedulePulse)}20;color:${pulse(audit.schedulePulse)};padding:4px 14px;border-radius:20px;font-size:13px;font-weight:700;border:1px solid ${pulse(audit.schedulePulse)}40;\">● ${audit.schedulePulse}</span>\n        <span style=\"background:#e0f2fe;color:#0369a1;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:600;\">Data Quality: ${audit.dataQuality}</span>\n      </div>\n      <p style=\"color:#4b5563;font-size:13px;line-height:1.7;margin:0 0 16px;\">${audit.executiveSummary}</p>\n      <table style=\"border-collapse:collapse;width:100%;\">\n        ${scoreBar('Critical Path', audit.scores?.criticalPath || 0)}\n        ${scoreBar('Missing Logic', audit.scores?.missingLogic || 0)}\n        ${scoreBar('Open-Ended Activities', audit.scores?.openEnded || 0)}\n        ${scoreBar('Negative Float', audit.scores?.negativeFloat || 0)}\n        ${scoreBar('Long Durations', audit.scores?.longDurations || 0)}\n        ${scoreBar('Resource Loading', audit.scores?.resourceLoad || 0)}\n      </table>\n    </td>\n  </tr></table>\n</div>\n\n<!-- ISSUE SUMMARY BADGES -->\n<table style=\"width:100%;border-collapse:collapse;margin-bottom:20px;\"><tr>\n  <td style=\"padding:0 6px 0 0;\"><div style=\"background:#fce7f3;border:1px solid #db277740;border-radius:12px;padding:16px;text-align:center;\"><div style=\"font-size:30px;font-weight:900;color:#9d174d;\">${stats.criticalIssues}</div><div style=\"color:#6b7280;font-size:11px;margin-top:2px;\">CRITICAL ISSUES</div></div></td>\n  <td style=\"padding:0 6px;\"><div style=\"background:#fee2e2;border:1px solid #ef444440;border-radius:12px;padding:16px;text-align:center;\"><div style=\"font-size:30px;font-weight:900;color:#991b1b;\">${stats.highIssues}</div><div style=\"color:#6b7280;font-size:11px;margin-top:2px;\">HIGH ISSUES</div></div></td>\n  <td style=\"padding:0 6px;\"><div style=\"background:#fef3c7;border:1px solid #f59e0b40;border-radius:12px;padding:16px;text-align:center;\"><div style=\"font-size:30px;font-weight:900;color:#92400e;\">${stats.totalIssues}</div><div style=\"color:#6b7280;font-size:11px;margin-top:2px;\">TOTAL ISSUES</div></div></td>\n  <td style=\"padding:0 6px;\"><div style=\"background:#d1fae5;border:1px solid #10b98140;border-radius:12px;padding:16px;text-align:center;\"><div style=\"font-size:30px;font-weight:900;color:#065f46;\">${stats.checkPass}</div><div style=\"color:#6b7280;font-size:11px;margin-top:2px;\">CHECKS PASSED</div></div></td>\n  <td style=\"padding:0 0 0 6px;\"><div style=\"background:#fee2e2;border:1px solid #ef444440;border-radius:12px;padding:16px;text-align:center;\"><div style=\"font-size:30px;font-weight:900;color:#991b1b;\">${stats.checkFail}</div><div style=\"color:#6b7280;font-size:11px;margin-top:2px;\">CHECKS FAILED</div></div></td>\n</tr></table>\n\n<!-- KEY METRICS -->\n<div style=\"background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:22px 24px;margin-bottom:20px;\">\n  <div style=\"font-size:15px;font-weight:700;color:#111827;margin-bottom:14px;\">📈 Key Schedule Metrics</div>\n  <table style=\"border-collapse:collapse;\"><tr>${metricCards}</tr></table>\n</div>\n\n<!-- PRIORITY ACTIONS -->\n<div style=\"background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:22px 24px;margin-bottom:24px;\">\n  <div style=\"font-size:15px;font-weight:700;color:#111827;margin-bottom:16px;\">🎯 Priority Action Plan</div>\n  <table style=\"width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;\">\n    <thead><tr style=\"background:#0f172a;\">\n      <th style=\"padding:10px 14px;text-align:center;color:#94a3b8;font-size:10px;letter-spacing:1px;width:40px;\">#</th>\n      <th style=\"padding:10px 14px;text-align:left;color:#94a3b8;font-size:10px;letter-spacing:1px;\">PRIORITY</th>\n      <th style=\"padding:10px 14px;text-align:left;color:#94a3b8;font-size:10px;letter-spacing:1px;\">ACTION REQUIRED</th>\n      <th style=\"padding:10px 14px;text-align:left;color:#94a3b8;font-size:10px;letter-spacing:1px;\">EXPECTED IMPACT</th>\n      <th style=\"padding:10px 14px;text-align:left;color:#94a3b8;font-size:10px;letter-spacing:1px;\">EFFORT</th>\n      <th style=\"padding:10px 14px;text-align:left;color:#94a3b8;font-size:10px;letter-spacing:1px;\">DEADLINE</th>\n    </tr></thead>\n    <tbody>${priorityTable}</tbody>\n  </table>\n</div>\n\n<!-- 6 AUDIT DIMENSIONS -->\n${renderSection('criticalPath',  '1. Critical Path Analysis',       '🔴', audit.scores?.criticalPath  || 0)}\n${renderSection('missingLogic',  '2. Missing Logic / Relationships', '🔗', audit.scores?.missingLogic  || 0)}\n${renderSection('openEnded',     '3. Open-Ended Activities',        '🔓', audit.scores?.openEnded     || 0)}\n${renderSection('negativeFloat', '4. Negative Float',               '📉', audit.scores?.negativeFloat || 0)}\n${renderSection('longDurations', '5. Long Durations',               '⏳', audit.scores?.longDurations || 0)}\n${renderSection('resourceLoad',  '6. Resource Overload',            '👷', audit.scores?.resourceLoad  || 0)}\n\n<!-- BEST PRACTICE CHECKLIST -->\n<div style=\"background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:22px 24px;margin-bottom:24px;\">\n  <div style=\"font-size:15px;font-weight:700;color:#111827;margin-bottom:16px;\">✅ Best Practice Checklist (${stats.checkPass}/${(audit.bestPracticeChecklist||[]).length} Passed)</div>\n  <div style=\"background:#f8fafc;border-radius:8px;margin-bottom:12px;padding:6px 12px;\"><table style=\"width:100%;border-collapse:collapse;\">\n    <tr style=\"background:#0f172a;\"><th style=\"padding:8px 14px;text-align:left;color:#94a3b8;font-size:10px;letter-spacing:1px;width:50px;\">STATUS</th><th style=\"padding:8px 14px;text-align:left;color:#94a3b8;font-size:10px;letter-spacing:1px;\">CHECK</th><th style=\"padding:8px 14px;text-align:left;color:#94a3b8;font-size:10px;letter-spacing:1px;\">NOTE</th></tr>\n    ${checklistRows}\n  </table></div>\n</div>\n\n<!-- EXPERT NOTES -->\n<div style=\"background:linear-gradient(135deg,#0f172a,#1e3a5f);border-radius:14px;padding:22px 28px;margin-bottom:24px;\">\n  <div style=\"font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:10px;\">🎓 Expert Planner Notes</div>\n  <p style=\"color:#cbd5e1;font-size:14px;line-height:1.7;margin:0;\">${audit.plannerNotes}</p>\n</div>\n\n<!-- FOOTER -->\n<div style=\"text-align:center;padding:20px 0;color:#9ca3af;font-size:12px;border-top:1px solid #e5e7eb;\">\n  <div style=\"font-weight:700;color:#374151;margin-bottom:4px;\">AI Primavera Schedule Analyzer</div>\n  <div>Audit ID: ${auditId} &nbsp;•&nbsp; ${auditDate} &nbsp;•&nbsp; Powered by Claude AI</div>\n  <div style=\"margin-top:4px;\">This report is AI-generated based on submitted schedule data. Always validate findings with your P6 schedule directly.</div>\n</div>\n\n</div></body></html>`;\n\nreturn [{ json: { ...d, htmlReport: html } }];"
+      },
+      "id": "node-005-html",
+      "name": "🎨 Build HTML Audit Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1080, 300]
+    },
+
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "=📊 Schedule Audit Report — {{ $json.project }} | Score: {{ $json.audit.overallScore }}/100 | {{ $json.audit.schedulePulse }}",
+        "emailType": "html",
+        "message": "={{ $json.htmlReport }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "node-006-gmail",
+      "name": "📧 Send Report via Gmail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1300, 180],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-oauth2-creds",
+          "name": "Gmail OAuth2"
+        }
+      }
+    },
+
+    {
+      "parameters": {
+        "sendTo": "=admin@yourcompany.com",
+        "subject": "=[NEW AUDIT] {{ $json.project }} — {{ $json.company }} — Score: {{ $json.audit.overallScore }}/100",
+        "emailType": "html",
+        "message": "=<h2>New Schedule Audit Submitted</h2>\n<table style=\"font-family:Arial;font-size:14px;border-collapse:collapse;\">\n<tr><td style=\"padding:6px 12px;font-weight:700;\">Audit ID</td><td style=\"padding:6px 12px;\">{{ $json.auditId }}</td></tr>\n<tr><td style=\"padding:6px 12px;font-weight:700;\">Planner Name</td><td style=\"padding:6px 12px;\">{{ $json.name }}</td></tr>\n<tr><td style=\"padding:6px 12px;font-weight:700;\">Email</td><td style=\"padding:6px 12px;\">{{ $json.email }}</td></tr>\n<tr><td style=\"padding:6px 12px;font-weight:700;\">Company</td><td style=\"padding:6px 12px;\">{{ $json.company }}</td></tr>\n<tr><td style=\"padding:6px 12px;font-weight:700;\">Project</td><td style=\"padding:6px 12px;\">{{ $json.project }}</td></tr>\n<tr><td style=\"padding:6px 12px;font-weight:700;\">Project Type</td><td style=\"padding:6px 12px;\">{{ $json.projectType }}</td></tr>\n<tr><td style=\"padding:6px 12px;font-weight:700;\">Overall Score</td><td style=\"padding:6px 12px;\"><strong>{{ $json.audit.overallScore }}/100 — Grade {{ $json.audit.overallGrade }}</strong></td></tr>\n<tr><td style=\"padding:6px 12px;font-weight:700;\">Schedule Pulse</td><td style=\"padding:6px 12px;\">{{ $json.audit.schedulePulse }}</td></tr>\n<tr><td style=\"padding:6px 12px;font-weight:700;\">Total Issues Found</td><td style=\"padding:6px 12px;\">{{ $json.stats.totalIssues }} ({{ $json.stats.criticalIssues }} Critical, {{ $json.stats.highIssues }} High)</td></tr>\n<tr><td style=\"padding:6px 12px;font-weight:700;\">Date</td><td style=\"padding:6px 12px;\">{{ $json.auditDate }} {{ $json.auditTime }}</td></tr>\n</table>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "node-007-admin-notify",
+      "name": "🔔 Admin Notification",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1300, 420],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-oauth2-creds",
+          "name": "Gmail OAuth2"
+        }
+      }
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Log this audit to a simple in-memory record\nconst d = $input.first().json;\nconst log = {\n  auditId:       d.auditId,\n  timestamp:     new Date().toISOString(),\n  name:          d.name,\n  email:         d.email,\n  company:       d.company,\n  project:       d.project,\n  projectType:   d.projectType,\n  overallScore:  d.audit?.overallScore,\n  overallGrade:  d.audit?.overallGrade,\n  schedulePulse: d.audit?.schedulePulse,\n  totalIssues:   d.stats?.totalIssues,\n  criticalIssues:d.stats?.criticalIssues,\n  checksPassed:  d.stats?.checkPass,\n  checksFailed:  d.stats?.checkFail,\n  scheduleFormat:d.scheduleFormat,\n  activityCount: d.activityCount\n};\nconsole.log('AUDIT LOG:', JSON.stringify(log));\nreturn [{ json: { success: true, log } }];"
+      },
+      "id": "node-008-log",
+      "name": "📝 Log Audit Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 600]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "const err = $input.first().json;\nconst meta = $('✅ Validate & Extract Data').first()?.json || {};\nconsole.error('Workflow Error:', JSON.stringify(err));\nreturn [{ json: {\n  success: false,\n  error: err.message || 'Unexpected error occurred',\n  email: meta.email || 'unknown',\n  project: meta.project || 'unknown',\n  timestamp: new Date().toISOString()\n}}];"
+      },
+      "id": "node-009-error",
+      "name": "⚠️ Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 540]
+    },
+
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "⚠️ Schedule Audit — Processing Issue",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial;max-width:500px;margin:40px auto;padding:30px;border:1px solid #e5e7eb;border-radius:12px;\">\n<h2 style=\"color:#ef4444;\">⚠️ We encountered an issue</h2>\n<p style=\"color:#374151;\">Hi there,</p>\n<p style=\"color:#374151;\">We were unable to process your schedule audit for <strong>{{ $json.project }}</strong>.</p>\n<p style=\"color:#374151;\">This can happen if:<br>• The schedule data was too short or unclear<br>• The file format was not recognised<br>• A temporary system issue occurred</p>\n<p style=\"color:#374151;\"><strong>Please try again</strong> — make sure to paste at least 20+ lines of schedule data including Activity IDs, Names, Durations, and Relationships.</p>\n<p style=\"color:#9ca3af;font-size:12px;\">Error reference: {{ $json.error }}</p>\n</div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "node-010-error-email",
+      "name": "📧 Error Email to User",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1080, 540],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-oauth2-creds",
+          "name": "Gmail OAuth2"
+        }
+      }
+    }
+
+  ],
+
+  "connections": {
+    "📋 Schedule Upload Form": {
+      "main": [[{ "node": "✅ Validate & Extract Data", "type": "main", "index": 0 }]]
+    },
+    "✅ Validate & Extract Data": {
+      "main": [[{ "node": "🤖 Claude AI — Schedule Analysis", "type": "main", "index": 0 }]]
+    },
+    "🤖 Claude AI — Schedule Analysis": {
+      "main": [[{ "node": "🔧 Parse AI Results", "type": "main", "index": 0 }]]
+    },
+    "🔧 Parse AI Results": {
+      "main": [[{ "node": "🎨 Build HTML Audit Report", "type": "main", "index": 0 }]]
+    },
+    "🎨 Build HTML Audit Report": {
+      "main": [[
+        { "node": "📧 Send Report via Gmail",  "type": "main", "index": 0 },
+        { "node": "🔔 Admin Notification",     "type": "main", "index": 0 },
+        { "node": "📝 Log Audit Record",       "type": "main", "index": 0 }
+      ]]
+    },
+    "⚠️ Error Handler": {
+      "main": [[{ "node": "📧 Error Email to User", "type": "main", "index": 0 }]]
+    }
+  },
+
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    { "id": "tag-primavera", "name": "Primavera P6" },
+    { "id": "tag-saas",      "name": "SaaS Tools" },
+    { "id": "tag-ai",        "name": "AI Automation" }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2026-03-13T00:00:00.000Z",
+  "versionId": "3.0.0"
+}
